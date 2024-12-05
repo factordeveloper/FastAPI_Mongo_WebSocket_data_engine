@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket & Database Messages</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007BFF;
+            color: white;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        .input-container input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .input-container button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .input-container button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket & Database Messages</h1>
+        <div class="table-container">
+            <table id="messageTable">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Count</th>
+                        <th>Timestamp</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Mensajes se agregarán aquí -->
+                </tbody>
+            </table>
+        </div>
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de URLs
+        const websocketUrl = "ws://127.0.0.1:8000/ws/events/";
+        const apiUrl = "http://127.0.0.1:8000/events/";
+
+        // Referencias al DOM
+        const messageTable = document.getElementById('messageTable').querySelector('tbody');
+        const messageInput = document.getElementById('messageInput');
+
+        // Conexión WebSocket
+        const socket = new WebSocket(websocketUrl);
+
+        // Cargar mensajes desde la base de datos al iniciar
+        async function loadMessagesFromDatabase() {
+            try {
+                const response = await fetch(apiUrl);
+                const messages = await response.json();
+                messages.forEach(msg => {
+                    addRowToTable(msg.event, msg.count, msg.timestamp, JSON.stringify(msg.data));
+                });
+            } catch (error) {
+                console.error("Error al cargar mensajes de la base de datos:", error);
+            }
+        }
+
+        // Conexión abierta
+        socket.onopen = () => {
+            console.log("Conectado al WebSocket");
+        };
+
+        // Mensaje recibido del WebSocket
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            addRowToTable(data.event, data.count, data.timestamp, JSON.stringify(data.data));
+        };
+
+        // Error en la conexión WebSocket
+        socket.onerror = (error) => {
+            console.error("Error en WebSocket:", error);
+        };
+
+        // Cerrar la conexión
+        socket.onclose = () => {
+            console.log("Conexión cerrada");
+        };
+
+        // Enviar mensaje al servidor WebSocket
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message) {
+                const jsonMessage = {
+                    event: "engine_events",
+                    count: 1,
+                    timestamp: Date.now(),
+                    data: [
+                        {
+                            powerunit_vin: "LEMBERGVIN",
+                            powerunit_id: "LEMBERGCVD",
+                            hardware_type: "cvd-605",
+                            ignition: true,
+                            wheels_in_motion: true,
+                            location: {
+                                city: "La Jolla",
+                                state: "CA",
+                                country: "US",
+                                lat: 32.7831395,
+                                lon: -117.25234
+                            },
+                            engine_parameters: {
+                                rpm: 8921.0,
+                                odometer: 1000.0,
+                                speed: 27.0,
+                                fuel_level: 0.98,
+                                cruise_control_active: true,
+                                cruise_control_set_speed: 27.0
+                            }
+                        }
+                    ]
+                };
+
+                socket.send(JSON.stringify(jsonMessage));
+                addRowToTable("Mensaje enviado", "-", "-", JSON.stringify(jsonMessage));
+                messageInput.value = ""; // Limpiar el campo de entrada
+            }
+        }
+
+        // Añadir fila a la tabla
+        function addRowToTable(event, count, timestamp, data) {
+            const row = document.createElement('tr');
+
+            const eventCell = document.createElement('td');
+            eventCell.textContent = event;
+
+            const countCell = document.createElement('td');
+            countCell.textContent = count;
+
+            const timestampCell = document.createElement('td');
+            timestampCell.textContent = new Date(timestamp).toLocaleString();
+
+            const dataCell = document.createElement('td');
+            dataCell.textContent = data;
+
+            row.appendChild(eventCell);
+            row.appendChild(countCell);
+            row.appendChild(timestampCell);
+            row.appendChild(dataCell);
+
+            messageTable.appendChild(row);
+        }
+
+        // Cargar mensajes al iniciar
+        loadMessagesFromDatabase();
+    </script>
+</body>
+</html>
